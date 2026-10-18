@@ -128,6 +128,21 @@ markup, faithfully carried.
 - **A mutation sweep**, which collapsed three guards into one: an empty `src`,
   a `data:` URL and a failed resolve all end the same way, and deleting any of
   the three changed nothing a test could see.
+- **A fuzz target** (`FuzzParse`, v0.1.1): no panic, a document OR an error and
+  never neither, the same bytes always giving the same document, and — the one
+  worth the target — **the limits measured on the OUTPUT** rather than trusted.
+  `Limits` declares what the reader will inflate; the assertion counts what the
+  document actually carries, which is where an accounting mistake lands. A
+  spine of a thousand chapters each naming one image would multiply a small
+  archive without limit if `spent` counted an entry once instead of on every
+  read; it counts on every read, and now something says so. 1.8M executions
+  found nothing.
+- ⚠ And the honest half of that number: a ZIP is checksummed, so **most
+  mutations are refused by `archive/zip` before any of this package runs** —
+  1.8M executions produced 32 interesting inputs, where the same budget against
+  a plain-text reader produces nearly five hundred. The deep paths are reached
+  far more cheaply by fuzzing the readers this package hands work to, which is
+  why `go-richdoc/html` got its own target in the same round.
 
 ## ⛔ The third bounded ZIP reader in this fleet
 
