@@ -18,7 +18,7 @@ type part struct {
 }
 
 // build writes a ZIP, which is all an EPUB's container is.
-func build(t *testing.T, parts ...part) []byte {
+func build(t testing.TB, parts ...part) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -47,7 +47,7 @@ const containerXML = `<?xml version="1.0"?>
 </container>`
 
 // book is a small, complete, ordinary EPUB 3: the shape nearly every book has.
-func book(t *testing.T, extra ...part) []byte {
+func book(t testing.TB, extra ...part) []byte {
 	t.Helper()
 	parts := []part{
 		{name: "mimetype", data: "application/epub+zip", store: true},
