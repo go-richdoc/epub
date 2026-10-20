@@ -1,6 +1,6 @@
-github.com/go-richdoc/html v0.1.0 h1:F3ax2Xu6dUir628nGfSOx6YUZ2+nKYcGMfN7LHOEBwM=
-github.com/go-richdoc/html v0.1.0/go.mod h1:knF/A2dOymAW6drlDiah/xleG8Vk9WOKXMcoKJq7YD0=
-github.com/go-richdoc/richdoc v0.6.0 h1:cema3hE5AAektDXTmvhWyBVnkCcZTVKhnkingwqsN7k=
-github.com/go-richdoc/richdoc v0.6.0/go.mod h1:RhxAcqwoUg1pnTYCiRdKILzOZwOmraO0dMJI4N6yY70=
+github.com/go-richdoc/html v0.1.2 h1:k3ORLrnH1dYA7WOoPBf2hEX9oFsUhjJSfXyOkyOMcmQ=
+github.com/go-richdoc/html v0.1.2/go.mod h1:knF/A2dOymAW6drlDiah/xleG8Vk9WOKXMcoKJq7YD0=
+github.com/go-richdoc/richdoc v0.7.0 h1:vhHypa0y26ulrOz6Aw1RIzeLjSMsFJyU1SzK5jd90lg=
+github.com/go-richdoc/richdoc v0.7.0/go.mod h1:RhxAcqwoUg1pnTYCiRdKILzOZwOmraO0dMJI4N6yY70=
 golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
 golang.org/x/net v0.61.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
