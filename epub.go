@@ -49,7 +49,7 @@ func Parse(src []byte, lim Limits) (*richdoc.Document, error) {
 			// error names the chapter.
 			return nil, err
 		}
-		chapter, err := html.Parse(b, html.Limits{MaxDepth: lim.MaxDepth, MaxNodes: lim.MaxNodes})
+		chapter, err := html.Parse(b, htmlLimits(lim))
 		if err != nil {
 			return nil, fmt.Errorf("epub: %s: %w", name, err)
 		}
@@ -63,6 +63,40 @@ func Parse(src []byte, lim Limits) (*richdoc.Document, error) {
 	}
 	return out, nil
 }
+
+// htmlLimits is what this reader's ceilings mean to the HTML reader underneath.
+//
+// ⛔ MaxEntryBytes IS HANDED ON AS MaxInputBytes. Both default to 64 MiB, so
+// nothing changes until a caller raises one — and a caller who raises
+// MaxEntryBytes to 128 MiB and is then refused at 64 by a ceiling they never
+// set has been told about a limit they cannot see. Threading it is what makes
+// the two agree by construction rather than by both happening to hold the same
+// number today.
+//
+// ⛔ CLAMPED, because MaxEntryBytes is an int64 and MaxInputBytes is an int. On
+// a 32-bit target or js/wasm a caller's 8 GiB becomes a small, welcoming number
+// if it is merely converted.
+func htmlLimits(lim Limits) html.Limits {
+	return html.Limits{
+		MaxDepth:      lim.MaxDepth,
+		MaxNodes:      lim.MaxNodes,
+		MaxInputBytes: clampToInt(lim.MaxEntryBytes),
+	}
+}
+
+// maxInt is the largest int on this platform, which on js/wasm and 32-bit
+// targets is not the largest int64.
+const maxInt = int(^uint(0) >> 1)
+
+// clampToInt is n as an int, or the largest int if it does not fit.
+//
+// ⛔ min AND NOT AN if, which is not a style choice. Written as a branch, the
+// "does not fit" arm is unreachable wherever int is 64 bits — so it is dead
+// code on this machine, uncovered by any test that can run here, and this
+// repository's CI refuses an uncovered block. One expression is covered
+// everywhere and does the same thing on a 32-bit target, where the arm is the
+// one that matters. The sibling MOBI reader settled on the same shape.
+func clampToInt(n int64) int { return int(min(n, int64(maxInt))) }
 
 // countNodes is how many blocks and inlines a slice of blocks holds, counting
 // the ones nested inside lists, quotes, table cells and footnotes.
