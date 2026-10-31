@@ -37,6 +37,9 @@ func Parse(src []byte, lim Limits) (*richdoc.Document, error) {
 	}
 
 	out := &richdoc.Document{Meta: p.meta()}
+	// ⛔ The book's own node budget, which MaxNodes is not: that one is handed
+	// fresh to every chapter. See Limits.MaxBookNodes.
+	spent := 0
 	for _, name := range order {
 		b, err := a.read(name)
 		if err != nil {
@@ -51,9 +54,79 @@ func Parse(src []byte, lim Limits) (*richdoc.Document, error) {
 			return nil, fmt.Errorf("epub: %s: %w", name, err)
 		}
 		blocks := inlineImages(a, name, chapter.Blocks)
+		spent += countNodes(blocks)
+		if spent > lim.MaxBookNodes {
+			return nil, fmt.Errorf("epub: %s: the book holds more than %d nodes",
+				name, lim.MaxBookNodes)
+		}
 		out.Blocks = append(out.Blocks, blocks...)
 	}
 	return out, nil
+}
+
+// countNodes is how many blocks and inlines a slice of blocks holds, counting
+// the ones nested inside lists, quotes, table cells and footnotes.
+//
+// ⛔ EVERY CONTAINER, or the count is a ceiling somebody routes around. A
+// thousand nested lists holding a thousand paragraphs each is two nodes to a
+// counter that does not recurse, and that is exactly the document a node
+// ceiling exists for.
+func countNodes(bs []richdoc.Block) int {
+	n := 0
+	var blocks func([]richdoc.Block)
+	var inlines func([]richdoc.Inline)
+
+	inlines = func(xs []richdoc.Inline) {
+		for _, x := range xs {
+			n++
+			switch v := x.(type) {
+			case richdoc.Link:
+				inlines(v.Inlines)
+			case richdoc.Emph:
+				inlines(v.Inlines)
+			case richdoc.Strong:
+				inlines(v.Inlines)
+			case richdoc.Anchor:
+				inlines(v.Inlines)
+			case richdoc.Footnote:
+				blocks(v.Blocks)
+			}
+		}
+	}
+	blocks = func(bs []richdoc.Block) {
+		for _, b := range bs {
+			n++
+			switch v := b.(type) {
+			case richdoc.Paragraph:
+				inlines(v.Inlines)
+			case richdoc.Heading:
+				inlines(v.Inlines)
+			case richdoc.BlockQuote:
+				blocks(v.Blocks)
+			// ⛔ AN ITEM AND A CELL ARE COUNTED THEMSELVES, not only their
+			// contents. An EMPTY one holds nothing to recurse into, so a table
+			// of a million empty <td> was ONE node to the first draft of this
+			// counter — a ceiling routed around by the cheapest markup there
+			// is. Caught by this function's own test disagreeing with the
+			// number I had worked out by hand for it.
+			case richdoc.List:
+				for _, it := range v.Items {
+					n++
+					blocks(it.Blocks)
+				}
+			case richdoc.Table:
+				for _, row := range append([][]richdoc.Cell{v.Header}, v.Rows...) {
+					for _, c := range row {
+						n++
+						inlines(c.Inlines)
+						blocks(c.Blocks)
+					}
+				}
+			}
+		}
+	}
+	blocks(bs)
+	return n
 }
 
 // inlineImages resolves every image in a chapter against the chapter's own

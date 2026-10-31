@@ -31,14 +31,45 @@ type Limits struct {
 	// MaxDepth and MaxNodes are handed to the HTML reader for each content
 	// document. They are named here so a caller sets one Limits rather than
 	// two.
+	//
+	// ⛔ EACH, and that is the whole of what they bound. Every chapter gets a
+	// fresh MaxNodes, so a spine of fifty chapters of a million nodes is fifty
+	// million nodes and each one of them passed its ceiling honestly. The
+	// comment above has always said "each"; what it did not say is that nothing
+	// bounded the BOOK. See MaxBookNodes.
 	MaxDepth int
 	MaxNodes int
+
+	// MaxBookNodes is how many nodes the document THIS READER RETURNS may hold,
+	// counted across every chapter.
+	//
+	// ⛔ IT IS A DIFFERENT UNIT FROM MaxNodes, deliberately. MaxNodes counts
+	// golang.org/x/net/html's nodes inside one chapter; this counts the blocks
+	// and inlines of the [richdoc.Document] that comes out, which is the thing
+	// the caller is handed and holds. Making one name mean both would be the
+	// mistake this package keeps finding elsewhere: a ceiling that reads as
+	// covering a quantity it never measured.
+	//
+	// ⛔ It is checked AFTER each chapter, so a book can overshoot by at most
+	// one chapter — itself bounded by MaxNodes. Capping the last chapter at the
+	// remaining budget instead would refuse chapters that fit: richdoc nodes
+	// are fewer than the html nodes they came from, so a budget of ten
+	// richdoc nodes is not a budget of ten html nodes, and a reader that
+	// confused the two would refuse a legitimate book.
+	MaxBookNodes int
 }
 
 const (
 	defaultMaxEntries    = 8192
 	defaultMaxEntryBytes = 64 << 20
 	defaultMaxTotalBytes = 384 << 20
+
+	// defaultMaxBookNodes is the HTML reader's own node ceiling, because a book
+	// is a document and that is what one document is allowed to be. Measured:
+	// at 58.5 bytes of heap per byte of inflated content, the 384 MiB of
+	// MaxTotalBytes buys about 22 GB of allocation, and a node ceiling is the
+	// bound the byte ceiling is not.
+	defaultMaxBookNodes = 1 << 20
 )
 
 func (l Limits) orDefaults() Limits {
@@ -50,6 +81,9 @@ func (l Limits) orDefaults() Limits {
 	}
 	if l.MaxTotalBytes <= 0 {
 		l.MaxTotalBytes = defaultMaxTotalBytes
+	}
+	if l.MaxBookNodes <= 0 {
+		l.MaxBookNodes = defaultMaxBookNodes
 	}
 	return l
 }

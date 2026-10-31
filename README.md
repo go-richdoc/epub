@@ -59,7 +59,10 @@ shorter book is the one failure nobody notices.
 ## ⛔ The limits are the security surface
 
 ```go
-epub.Limits{MaxEntries: 8192, MaxEntryBytes: 64 << 20, MaxTotalBytes: 384 << 20}
+epub.Limits{
+    MaxEntries: 8192, MaxEntryBytes: 64 << 20, MaxTotalBytes: 384 << 20,
+    MaxBookNodes: 1 << 20, // the whole book, not each chapter (v0.2.0)
+}
 ```
 
 Every one of these bounds an allocation decided by a number **in the file**. A
@@ -76,6 +79,50 @@ A reference that climbs out of the container is refused rather than cleaned
 into something harmless; a reference with a scheme is refused as a URL; a
 reference to nothing but a fragment is refused rather than resolved to the
 chapter that made it.
+
+### ⛔ `MaxNodes` bounded each chapter, and nothing bounded the book
+
+`MaxDepth` and `MaxNodes` are handed to the HTML reader **for each content
+document** — the doc comment always said *each* — so a spine of fifty chapters
+of a million nodes is fifty million nodes, and every one of them passed its
+ceiling honestly. Two ceilings that multiply, with each factor correct: the same
+shape as a CSV's rows × columns in
+[go-richdoc/data](https://github.com/go-richdoc/data).
+
+`MaxBookNodes` (v0.2.0) bounds what this reader **returns**. ⛔ It is a different
+unit from `MaxNodes` on purpose: that one counts `x/net/html`'s nodes inside one
+chapter, this one counts the blocks and inlines of the `richdoc.Document` the
+caller is handed. One name for both would be a ceiling that reads as covering a
+quantity it never measured.
+
+⛔ **An item and a cell are counted themselves**, not only their contents — an
+*empty* one holds nothing to recurse into, so a table of a million empty `<td>`
+was **one node** to the first draft of the counter. It was caught by that
+function's own test disagreeing with the number I had worked out by hand for
+it, which is the argument for writing the expected count rather than asserting
+that two counts match.
+
+### What a byte of this format buys
+
+| | |
+| --- | --- |
+| per byte **inflated** | **58.5** bytes of heap |
+| per byte of **archive** | 8 058.8 — *and meaningless* |
+
+⛔ The second row is in the table to be dismissed. **The author of the file picks
+the compression ratio**, so a figure per archive byte says what an attacker chose
+to compress by and not what this reader does. Deflate squeezes a repeated
+paragraph about a hundredfold. The quantity the reader controls is what it spends
+per byte it has **inflated**, which is what `MaxTotalBytes` bounds — so that is
+the denominator, and 58.5 is essentially the HTML reader's own 56.3, because the
+cost is the HTML reader's.
+
+And the control that the byte ceiling **does** bound the work, ported from
+`data` and `html` where the same control found real defects: two archives
+refused by the same ceiling, the second inflating to eight times what the first
+does, cost 100 344 and 74 744 bytes — a **ratio of 0.7**. Entries are bounded as
+they inflate, so this half of the reader was already right, and the control stays
+committed to keep it that way.
 
 ## Measured on real books, which are not in this repository
 
