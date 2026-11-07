@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/go-richdoc/richdoc"
+	"github.com/go-richdoc/richdoc/bombtest"
 )
 
 // allocatedBy is how many bytes one call asks the allocator for in total.
@@ -90,16 +91,25 @@ func TestTheTotalByteCeilingStopsTheWork(t *testing.T) {
 		large   = 160_000 // ~1.6 MB inflated, eight times as much
 	)
 
+	// ⛔ Through the shared gate, which asserts the refusal, holds the process
+	// to HeldAtMost and names a regression past AsksAtMost — and refuses a
+	// Bound that left any of those unanswered BEFORE the bomb allocates. The
+	// figures are this package's own: refusing a 4 KiB ceiling costs about
+	// 100 KB here, so 4 MiB names a regression without pretending the honest
+	// cost is smaller than it is.
+	bound := bombtest.Bound{
+		Why:        "MaxTotalBytes refuses a deflated chapter as it inflates",
+		AsksAtMost: 4 << 20,
+		HeldAtMost: 256 << 20,
+	}
 	cost := func(n int) uint64 {
 		src := bookWithChapterOf(t, n)
-		total, _, err := allocatedBy(t, func() (*richdoc.Document, error) {
-			return Parse(src, Limits{MaxTotalBytes: ceiling})
+		r := bombtest.Run(t, bound, func() error {
+			_, err := Parse(src, Limits{MaxTotalBytes: ceiling})
+			return err
 		})
-		if err == nil {
-			t.Fatalf("a chapter of %d paragraphs against a %d byte ceiling was accepted", n, ceiling)
-		}
-		t.Logf("%d paragraphs, archive %d bytes, refused: %d allocated", n, len(src), total)
-		return total
+		t.Logf("%d paragraphs, archive %d bytes: %s", n, len(src), r)
+		return r.Asked
 	}
 
 	s, l := cost(small), cost(large)
