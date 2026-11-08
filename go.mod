@@ -1,6 +1,6 @@
 module github.com/go-richdoc/epub
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/go-richdoc/html v0.3.0
