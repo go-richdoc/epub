@@ -8,6 +8,14 @@ on:
 env:
   GOWORK: "off"
 
+# Least privilege, named rather than inherited. Reported by `wfaudit`: with no
+# permissions declared, every job received the repository's DEFAULT token —
+# read-only or read-write by an organisation setting this file cannot show,
+# which put "what can a job here reach" somewhere no reviewer of this file
+# could read. Nothing below writes.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,9 +25,12 @@ jobs:
       CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@v7
+      # go.mod and not a hard-coded version, which `gofloor` reports as a
+      # finding: a lane pinned beside a go.mod drifts from it silently, and
+      # the toolchain decides every standard-library finding.
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.3'
+          go-version-file: go.mod
       - name: Gofmt
         run: |
           out=$(gofmt -l .)
@@ -55,31 +66,50 @@ jobs:
           fi
           echo "every block with a statement in it was entered"
 
+  vulns:
+    # The organisation's lane, defined once in go-richdoc/.github and called
+    # here. It runs govulncheck and hands the stream to vulngate rather than
+    # believing an exit status that answers a different question, and it scans
+    # under this repository's own go.mod. See that file for the measurements
+    # that put it there.
+    uses: go-richdoc/.github/.github/workflows/vulns.yml@main
+
   cross-build:
     runs-on: ubuntu-latest
     env:
       CGO_ENABLED: "0"
     strategy:
       fail-fast: false
+      # ⛔ goos and goarch SEPARATELY, not one "linux/amd64" string split in
+      # the shell. The step used to do
+      #
+      #     export GOOS=$(echo "${{ matrix.target }}" | cut -d/ -f1)
+      #
+      # which actionlint reports as SC2155: `export X=$(...)` masks the
+      # pipeline's exit status, so a failed split leaves GOOS empty and `go
+      # build` silently builds for the HOST while the job reports that it
+      # cross-built for s390x. Nothing here had an actionlint lane, so nobody
+      # saw it. The matrix carries the two values, GitHub substitutes them into
+      # the environment, and no shell parses anything.
       matrix:
-        target:
-          - linux/amd64
-          - linux/arm64
-          - linux/riscv64
-          - linux/ppc64le
-          - linux/s390x
-          - linux/loong64
-          - darwin/amd64
-          - darwin/arm64
-          - windows/amd64
-          - js/wasm
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: linux, goarch: riscv64 }
+          - { goos: linux, goarch: ppc64le }
+          - { goos: linux, goarch: s390x }
+          - { goos: linux, goarch: loong64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: js, goarch: wasm }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.27.3'
-      - name: Build ${{ matrix.target }}
-        run: |
-          export GOOS=$(echo "${{ matrix.target }}" | cut -d/ -f1)
-          export GOARCH=$(echo "${{ matrix.target }}" | cut -d/ -f2)
-          go build ./...
+          go-version-file: go.mod
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build ./...
